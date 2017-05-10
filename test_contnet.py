@@ -1,58 +1,90 @@
-#!/usr/bin/env python2.7
 
-# example
-# An example of helper utility to do stuff on multiple incidents based on filter
-#
-# Stuff can be closing incidents, running a command, changing type or changing playbook
-#
-# Author:       Slavik Markovich
-# Version:      1.0
-#
-
-import json
 import argparse
 import demisto
+import time
+
 
 def options_handler():
     parser = argparse.ArgumentParser(description='Utility for batch action on incidents')
     parser.add_argument('-k', '--key', help='The API key to access the server', required=True)
     parser.add_argument('-s', '--server', help='The server URL to connect to', required=True)
     parser.add_argument('-n', '--name', help='Incident name', required=True)
-    parser.add_argument('-t', '--type', help='Incident Type')
-    parser.add_argument('-sev', '--severity', help='Incident Severity', default='Unknown', choices=['Critical', 'High', 'Medium', 'Low', 'Informational','Unknown'])
-    parser.add_argument('-o', '--owner', help='Incident Owner')
-    parser.add_argument('-d', '--details', help='Incident Details')
-    parser.add_argument('-l', '--labels', help='Incident Labels, in the format [{"type":"t","value":"v"},{"type":"t2","value":"v2"}]')
-    parser.add_argument('-c','--custom_fields', help='The json that includes the values for the custom fields, in the format {\'alertsource\': \'vc\',\'datetimecreated\': \'Wed, 15 Feb 2017 13:05:13 GMT\'}')
     options = parser.parse_args()
 
     return options
 
 
-def severity_to_number(severity_str):
-    return {
-        'Critical': 4,
-        'High': 3,
-        'Medium': 2,
-        'Low': 1,
-        'Informational': 0.5,
-        'Unknown': 0
-    }[severity_str]
+# create incident with given name & playbook, and then fetch & return the incident
+def create_incident_with_playbook(client, name, playbook_id):
+    # create incident
+    kwargs = {'createInvestigation': True, 'playbookId': playbook_id}
+    r = client.CreateIncident(name, None, None, None, None,
+                         None, None, **kwargs)
+    response_json = r.json()
+    incId = response_json['id']
+
+    # wait for incident to be created
+    time.sleep(1)
+
+    # get incident
+    incidents = client.SearchIncidents(0, 50, 'id:' + incId)
+
+    if incidents['total'] != 1:
+        print 'failed to get incident with id:' + incId
+        return
+
+    return incidents['data'][0]
+
+
+def get_investigation_playbook_state(client, inv_id):
+    res = client.req('GET', '/inv-playbook/' + inv_id, {})
+    investigation_playbook = res.json()
+
+    return investigation_playbook['state']
+
 
 def main():
     options = options_handler()
     c = demisto.DemistoClient(options.key, options.server)
-    labels = None
-    if (options.labels is not None) and len(options.labels) > 0 :
-        labels = json.loads(options.labels)
-    fields = None
-    if (options.custom_fields is not None) and len(options.custom_fields) > 0 :
-        fields = json.loads(options.custom_fields)
 
-    kwargs = {'createInvestigation': True, 'playbookId': 'Cisco-Umbrella-Test'}
-    r = c.CreateIncident(options.name, options.type, severity_to_number(options.severity), options.owner, labels,
-                         options.details, fields, **kwargs)
-    print(r)
+    playbook_id = 'Cisco-Umbrella-Test'
+    incident = create_incident_with_playbook(c, options.name, playbook_id)
+
+    investigation_id = incident['investigationId']
+    if investigation_id is None or len(investigation_id) == 0:
+        print 'failed to get investigation id of incident:' + incident
+        return
+
+    print 'waiting for incident creation'
+    time.sleep(0.2)
+
+    timeout_amount = 3 * 10  # 30 seconds from now
+    timeout = time.time() + timeout_amount
+
+    interval = 0.10
+    i = 1
+    while True:
+        # give playbook time to run
+        time.sleep(interval)
+
+        # fetch status
+        playbook_state = get_investigation_playbook_state(c, investigation_id)
+
+        if playbook_state == 'completed':
+            print 'Playbook ' + playbook_id + ' succeed'
+            break
+        if playbook_state == 'failed':
+            print 'Playbook ' + playbook_id + ' failed'
+            break
+        if time.time() > timeout:
+            print 'Playbook ' + playbook_id + ' timeout failure'
+            break
+
+        print 'loop no.' + str(i) + ', state is ' + playbook_state
+        i = i + 1
+
+
+    print 'finished'
 
 if __name__ == '__main__':
     main()
