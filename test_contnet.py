@@ -22,7 +22,7 @@ def create_integration_instance(client, integration_name, integration_params):
 
     # get integration module-conf
     res = client.req('POST', '/settings/integration/search', {
-        'page': 0, 'size': 50, 'query': 'name=' + integration_name # TODO - fix query
+        'page': 0, 'size': 50, 'query': 'name=' + integration_name  # TODO - fix query
     })
 
     res = res.json()
@@ -201,7 +201,8 @@ if __name__ == '__main__':
 
 # TODO - 1. use created instance in running pb (assume 1 instance is exists)
 # TODO - 2. define all pbs, integrations & integrations params
-# TODO - 3. deployment:
+# TODO - 3. configure sleep/timeout times
+# TODO - 4. deployment:
 #    a. keep integration params (secret) in circle-env
 #    b. use demo5 to as server (keep in mind API key)
 #    c. get branch content to demo 5 (copy it to res)
