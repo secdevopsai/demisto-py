@@ -3,6 +3,8 @@ import argparse
 import demisto
 import time
 import pprint
+import uuid
+import urllib
 
 
 def options_handler():
@@ -15,12 +17,12 @@ def options_handler():
     return options
 
 
-# return true if succeed
+# return instance name if succeed, None otherwise
 def create_integration_instance(client, integration_name, integration_params):
 
     # get integration module-conf
     res = client.req('POST', '/settings/integration/search', {
-        'page': 0, 'size': 50, 'query': 'name=' + integration_name #  TODO - fix query
+        'page': 0, 'size': 50, 'query': 'name=' + integration_name # TODO - fix query
     })
 
     res = res.json()
@@ -32,11 +34,12 @@ def create_integration_instance(client, integration_name, integration_params):
         return False
 
     configuration = match_configurations[0]
-    # define instance params in integration params
     module_configuration = configuration['configuration']
 
+    instance_name = integration_name + '_test' + str(uuid.uuid4())
+    # define module instance
     module_instance = {
-        'brand': configuration['id'],
+        'brand': configuration['name'],
         'category': configuration['category'],
         'configuration': configuration,
         'data': [],
@@ -44,30 +47,30 @@ def create_integration_instance(client, integration_name, integration_params):
         'engine': '',
         'id': '',
         'isIntegrationScript': True,
-        'name': integration_name + '_test',
+        'name': instance_name,
         'passwordProtected': False,
-        'version': 1  # TODO - how to handle this
+        'version': 0
     }
 
+    # set module params
     for param_conf in module_configuration:
         if param_conf['name'] in integration_params:
+            # param defined by user
             param_conf['value'] = integration_params[param_conf['name']]
             param_conf['hasvalue'] = True
         elif param_conf['required'] is True:
+            # param is required - take default falue
             param_conf['value'] = param_conf['defaultValue']
         module_instance['data'].append(param_conf)
 
-    # create instance
-    #pprint.pprint(integration[0]['configuration'])
-
     res = client.req('PUT', '/settings/integration', module_instance)
 
-
-    create_res = res.json()
-
-
-    pprint.pprint(create_res)
-    return False
+    if res.status_code == 200:
+        return instance_name
+    else:
+        print 'create instance failed with status code ' + str(res.status_code)
+        pprint.pprint(res.json())
+        return None
 
 
 # create incident with given name & playbook, and then fetch & return the incident
@@ -92,6 +95,7 @@ def create_incident_with_playbook(client, name, playbook_id):
     return incidents['data'][0]
 
 
+# returns current investigation playbook state - 'inprogress'/'failed'/'completed'
 def get_investigation_playbook_state(client, inv_id):
     res = client.req('GET', '/inv-playbook/' + inv_id, {})
     investigation_playbook = res.json()
@@ -99,6 +103,36 @@ def get_investigation_playbook_state(client, inv_id):
     return investigation_playbook['state']
 
 
+# return True if delete-incident succeeded, False otherwise
+def delete_incident(client, incident):
+    res = client.req('POST', '/incident/batchDelete', {
+        'ids': [incident['id']],
+        'filter': {},
+        'all': False
+    })
+
+    if res.status_code is not 200:
+        print 'delete incident failed\nStatus code' + str(res.status_code)
+        pprint.pprint(res.json())
+        return False
+    return True
+
+
+# return True if delete-integration-instance succeeded, False otherwise
+def delete_integration_instance(client, instance_name):
+    res = client.req('DELETE', '/settings/integration/' + urllib.quote(instance_name), {})
+    if res.status_code is not 200:
+        print 'delete integration instance failed\nStatus code' + str(res.status_code)
+        pprint.pprint(res.json())
+        return False
+    return True
+
+
+# 1. create integration instance
+# 2. create incident with playbook
+# 3. wait for playbook to finish run
+# 4. delete incident
+# 5. delete instance
 def main():
     options = options_handler()
     c = demisto.DemistoClient(options.key, options.server)
@@ -109,10 +143,10 @@ def main():
     }
 
     # create integration instance
-    ok = create_integration_instance(c, integration_name, integration_params)
+    instance_name = create_integration_instance(c, integration_name, integration_params)
 
-    if not ok:
-        print 'return'
+    if not instance_name:
+        print 'failed to create instance'
         return
 
     # create incident with playbook
@@ -132,6 +166,8 @@ def main():
 
     interval = 0.10
     i = 1
+
+    # wait for playbook to finish run
     while True:
         # give playbook time to run
         time.sleep(interval)
@@ -151,6 +187,12 @@ def main():
 
         print 'loop no.' + str(i) + ', state is ' + playbook_state
         i = i + 1
+
+    # delete incident
+    delete_incident(c, incident)
+
+    # delete integration instance
+    delete_integration_instance(c, instance_name)
 
     print 'finished'
 
