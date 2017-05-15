@@ -198,3 +198,12 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# TODO - 1. use created instance in running pb (assume 1 instance is exists)
+# TODO - 2. define all pbs, integrations & integrations params
+# TODO - 3. deployment:
+#    a. keep integration params (secret) in circle-env
+#    b. use demo5 to as server (keep in mind API key)
+#    c. get branch content to demo 5 (copy it to res)
+
+
