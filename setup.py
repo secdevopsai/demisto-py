@@ -7,5 +7,5 @@ setup(name='demisto',
       description='Demisto Client for python',
       author='Slavik Markovich',
       url='https://github.com/demisto/demisto-py',
-      packages=[''],
+      packages=['demisto'],
       )
