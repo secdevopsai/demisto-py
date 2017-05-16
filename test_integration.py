@@ -1,8 +1,8 @@
-
 import time
 import pprint
 import uuid
 import urllib
+import os
 
 DEFAULT_TIMEOUT = 60
 DEFAULT_INTERVAL = 10
@@ -47,7 +47,10 @@ def __create_integration_instance(client, integration_name, integration_params):
     for param_conf in module_configuration:
         if param_conf['display'] in integration_params:
             # param defined by user
-            param_conf['value'] = integration_params[param_conf['display']]
+            param_value = integration_params[param_conf['display']]
+            if isinstance(param_value, basestring) and param_value.startswith('$'):
+                param_value = os.environ.get(param_value)
+            param_conf['value'] = param_value
             param_conf['hasvalue'] = True
         elif param_conf['required'] is True:
             # param is required - take default falue

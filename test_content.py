@@ -1,4 +1,3 @@
-
 import argparse
 import demisto
 import test_integration
@@ -7,8 +6,8 @@ import json
 
 def options_handler():
     parser = argparse.ArgumentParser(description='Utility for batch action on incidents')
-    parser.add_argument('-u', '--user', help='The username for the login')
-    parser.add_argument('-p', '--password', help='The password for the login')
+    parser.add_argument('-u', '--user', help='The username for the login', required=True)
+    parser.add_argument('-p', '--password', help='The password for the login', required=True)
     parser.add_argument('-s', '--server', help='The server URL to connect to', required=True)
     options = parser.parse_args()
 

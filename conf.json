@@ -6,7 +6,7 @@
       "name": "Cisco Umbrella Investigate",
       "playbookID": "Cisco-Umbrella-Test",
       "params": {
-         "Cisco Umbrella API token": "###"
+         "Cisco Umbrella API token": "$CISCO_API_TOKEN"
       }
     }
   ]
