@@ -22,7 +22,7 @@ def create_integration_instance(client, integration_name, integration_params):
 
     # get integration module-conf
     res = client.req('POST', '/settings/integration/search', {
-        'page': 0, 'size': 50, 'query': 'name=' + integration_name  # TODO - fix query
+        'page': 0, 'size': 200, 'query': 'name=' + integration_name  # TODO - fix query
     })
 
     res = res.json()
@@ -208,3 +208,9 @@ if __name__ == '__main__':
 #    c. get branch content to demo 5 (copy it to res)
 
 
+# replace integration params to display name
+# get api key by login
+# configure times/pb name/integration name/ integration params
+        # replace secret with env variables
+# managaer script
+# upload file to investigation
