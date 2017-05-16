@@ -2,10 +2,10 @@
 
 from distutils.core import setup
 
-setup(name='Demisto-python',
+setup(name='demisto',
       version='1.0',
       description='Demisto Client for python',
-      author='Slavik',
-      url='https://www.python.org/sigs/distutils-sig/',
+      author='Slavik Markovich',
+      url='https://github.com/demisto/demisto-py',
       packages=[''],
-     )
+      )

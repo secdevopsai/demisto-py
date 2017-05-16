@@ -9,10 +9,17 @@ First, get Demisto api-key. You can generate one via Demisto client - on `settin
 ```python
 import demisto
 client = demisto.DemistoClient('<your-api-key-goes-here>', 'https://localhost:8443')
+```
+
+Or to use username & password:
+
+```python
+import demisto
+client = demisto.DemistoClient(None, 'https://localhost:8443', <username>, <password>)
 client.Login()
 ```
-Should return <Response [200]>
 
+`client.Login()` Should return <Response [200]>
 
 You can create incidents:
 
