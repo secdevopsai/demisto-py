@@ -1,24 +1,12 @@
 
-import argparse
-import demisto
 import time
 import pprint
 import uuid
 import urllib
 
 
-def options_handler():
-    parser = argparse.ArgumentParser(description='Utility for batch action on incidents')
-    parser.add_argument('-k', '--key', help='The API key to access the server', required=True)
-    parser.add_argument('-s', '--server', help='The server URL to connect to', required=True)
-    parser.add_argument('-n', '--name', help='Incident name', required=True)
-    options = parser.parse_args()
-
-    return options
-
-
 # return instance name if succeed, None otherwise
-def create_integration_instance(client, integration_name, integration_params):
+def __create_integration_instance(client, integration_name, integration_params):
 
     # get integration module-conf
     res = client.req('POST', '/settings/integration/search', {
@@ -54,9 +42,9 @@ def create_integration_instance(client, integration_name, integration_params):
 
     # set module params
     for param_conf in module_configuration:
-        if param_conf['name'] in integration_params:
+        if param_conf['display'] in integration_params:
             # param defined by user
-            param_conf['value'] = integration_params[param_conf['name']]
+            param_conf['value'] = integration_params[param_conf['display']]
             param_conf['hasvalue'] = True
         elif param_conf['required'] is True:
             # param is required - take default falue
@@ -74,7 +62,7 @@ def create_integration_instance(client, integration_name, integration_params):
 
 
 # create incident with given name & playbook, and then fetch & return the incident
-def create_incident_with_playbook(client, name, playbook_id):
+def __create_incident_with_playbook(client, name, playbook_id):
     # create incident
     kwargs = {'createInvestigation': True, 'playbookId': playbook_id}
     r = client.CreateIncident(name, None, None, None, None,
@@ -96,7 +84,7 @@ def create_incident_with_playbook(client, name, playbook_id):
 
 
 # returns current investigation playbook state - 'inprogress'/'failed'/'completed'
-def get_investigation_playbook_state(client, inv_id):
+def __get_investigation_playbook_state(client, inv_id):
     res = client.req('GET', '/inv-playbook/' + inv_id, {})
     investigation_playbook = res.json()
 
@@ -104,7 +92,7 @@ def get_investigation_playbook_state(client, inv_id):
 
 
 # return True if delete-incident succeeded, False otherwise
-def delete_incident(client, incident):
+def __delete_incident(client, incident):
     res = client.req('POST', '/incident/batchDelete', {
         'ids': [incident['id']],
         'filter': {},
@@ -119,7 +107,7 @@ def delete_incident(client, incident):
 
 
 # return True if delete-integration-instance succeeded, False otherwise
-def delete_integration_instance(client, instance_name):
+def __delete_integration_instance(client, instance_name):
     res = client.req('DELETE', '/settings/integration/' + urllib.quote(instance_name), {})
     if res.status_code is not 200:
         print 'delete integration instance failed\nStatus code' + str(res.status_code)
@@ -133,25 +121,16 @@ def delete_integration_instance(client, instance_name):
 # 3. wait for playbook to finish run
 # 4. delete incident
 # 5. delete instance
-def main():
-    options = options_handler()
-    c = demisto.DemistoClient(options.key, options.server)
-
-    integration_name = 'Cisco Umbrella Investigate'
-    integration_params = {
-        'APIToken': '64267415-bf26-4434-900b-65f2ef6e06fa'
-    }
-
+def test_integration(client, integration_name, integration_params, playbook_id):
     # create integration instance
-    instance_name = create_integration_instance(c, integration_name, integration_params)
+    instance_name = __create_integration_instance(client, integration_name, integration_params)
 
     if not instance_name:
         print 'failed to create instance'
         return
 
     # create incident with playbook
-    playbook_id = 'Cisco-Umbrella-Test'
-    incident = create_incident_with_playbook(c, options.name, playbook_id)
+    incident = __create_incident_with_playbook(client, integration_name, playbook_id)
 
     investigation_id = incident['investigationId']
     if investigation_id is None or len(investigation_id) == 0:
@@ -173,7 +152,7 @@ def main():
         time.sleep(interval)
 
         # fetch status
-        playbook_state = get_investigation_playbook_state(c, investigation_id)
+        playbook_state = __get_investigation_playbook_state(client, investigation_id)
 
         if playbook_state == 'completed':
             print 'Playbook ' + playbook_id + ' succeed'
@@ -189,28 +168,9 @@ def main():
         i = i + 1
 
     # delete incident
-    delete_incident(c, incident)
+    __delete_incident(client, incident)
 
     # delete integration instance
-    delete_integration_instance(c, instance_name)
+    __delete_integration_instance(client, instance_name)
 
     print 'finished'
-
-if __name__ == '__main__':
-    main()
-
-# TODO - 1. use created instance in running pb (assume 1 instance is exists)
-# TODO - 2. define all pbs, integrations & integrations params
-# TODO - 3. configure sleep/timeout times
-# TODO - 4. deployment:
-#    a. keep integration params (secret) in circle-env
-#    b. use demo5 to as server (keep in mind API key)
-#    c. get branch content to demo 5 (copy it to res)
-
-
-# replace integration params to display name
-# get api key by login
-# configure times/pb name/integration name/ integration params
-        # replace secret with env variables
-# managaer script
-# upload file to investigation
