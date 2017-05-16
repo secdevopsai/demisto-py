@@ -1,0 +1,13 @@
+{
+  "testTimeout": 30,
+  "testInterval": 10,
+  "integrations": [
+    {
+      "name": "Cisco Umbrella Investigate",
+      "playbookID": "Cisco-Umbrella-Test",
+      "params": {
+         "Cisco Umbrella API token": "64267415-bf26-4434-900b-65f2ef6e06fa"
+      }
+    }
+  ]
+}

@@ -4,6 +4,9 @@ import pprint
 import uuid
 import urllib
 
+DEFAULT_TIMEOUT = 60
+DEFAULT_INTERVAL = 10
+
 
 # return instance name if succeed, None otherwise
 def __create_integration_instance(client, integration_name, integration_params):
@@ -121,7 +124,7 @@ def __delete_integration_instance(client, instance_name):
 # 3. wait for playbook to finish run
 # 4. delete incident
 # 5. delete instance
-def test_integration(client, integration_name, integration_params, playbook_id):
+def test_integration(client, integration_name, integration_params, playbook_id, options={}):
     # create integration instance
     instance_name = __create_integration_instance(client, integration_name, integration_params)
 
@@ -137,15 +140,14 @@ def test_integration(client, integration_name, integration_params, playbook_id):
         print 'failed to get investigation id of incident:' + incident
         return
 
-    print 'waiting for incident creation'
+    # waiting for incident creation
     time.sleep(0.2)
 
-    timeout_amount = 3 * 10  # 30 seconds from now
+    timeout_amount = options['timeout'] if 'timeout' in options else DEFAULT_TIMEOUT
     timeout = time.time() + timeout_amount
+    interval = options['interval'] if 'interval' in options else DEFAULT_INTERVAL
 
-    interval = 0.10
     i = 1
-
     # wait for playbook to finish run
     while True:
         # give playbook time to run
@@ -164,7 +166,7 @@ def test_integration(client, integration_name, integration_params, playbook_id):
             print 'Playbook ' + playbook_id + ' timeout failure'
             break
 
-        print 'loop no.' + str(i) + ', state is ' + playbook_state
+        print 'loop no.' + str(i) + ', playbook state is ' + playbook_state
         i = i + 1
 
     # delete incident
