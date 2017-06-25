@@ -1,6 +1,6 @@
 import argparse
 import demisto
-import test_integration
+from test_integration import test_integration
 import json
 
 
@@ -25,15 +25,14 @@ def main():
     if not (username and password and server):
         raise ValueError('You must provide server user & password arguments')
 
-    with open(conf) as data_file:
-        conf = json.load(data_file)
-
     c = demisto.DemistoClient(None, server, username, password)
     res = c.Login()
     if res.status_code is not 200:
         raise ValueError("Login has failed")
 
-    # TODO - get content from branch
+    with open(conf) as data_file:
+        conf = json.load(data_file)
+
     integrations = conf['integrations']
     if not integrations or len(integrations) is 0:
         print 'no integrations are configured for test'
@@ -42,8 +41,7 @@ def main():
             'timeout': integration['timeout'] if 'timeout' in integration else conf['testTimeout'],
             'interval': conf['testInterval']
         }
-        test_integration.test_integration(c, integration['name'], integration['params'], integration['playbookID'],
-                                          test_options)
+        test_integration(c, integration['name'], integration['params'], integration['playbookID'], test_options)
 
 
 if __name__ == '__main__':
