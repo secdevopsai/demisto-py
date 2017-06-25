@@ -28,11 +28,12 @@ class PB_Status:
 # get integration configuration
 def __get_integration_config(client, integration_name):
     res = client.req('POST', '/settings/integration/search', {
-        'page': 0, 'size': 200, 'query': 'name=' + integration_name  # TODO - fix query
+        'page': 0, 'size': 100, 'query': 'name:' + integration_name  # TODO - fix query
     })
 
     res = res.json()
     all_configurations = res['configurations']
+    print "##### conf len=" + str(len(all_configurations))
     match_configurations = [x for x in all_configurations if x['name'] == integration_name]
 
     if not match_configurations or len(match_configurations) == 0:
@@ -107,10 +108,10 @@ def __create_integration_instance(client, integration_name, integration_params):
     test_succeed = __test_integration_instance(client, module_instance)
 
     if not test_succeed:
-        __delete_integration_instance(client, instance_name)
+        __delete_integration_instance(client, module_instance['id'])
         return None
 
-    return instance_name
+    return module_instance['id']
 
 
 # create incident with given name & playbook, and then fetch & return the incident
@@ -164,8 +165,8 @@ def __delete_incident(client, incident):
 
 
 # return True if delete-integration-instance succeeded, False otherwise
-def __delete_integration_instance(client, instance_name):
-    res = client.req('DELETE', '/settings/integration/' + urllib.quote(instance_name), {})
+def __delete_integration_instance(client, instance_id):
+    res = client.req('DELETE', '/settings/integration/' + urllib.quote(instance_id), {})
     if res.status_code is not 200:
         print_error('delete integration instance failed\nStatus code' + str(res.status_code))
         print_error(pformat(res.json()))
@@ -193,9 +194,9 @@ def __print_investigation_error(client, playbook_id, investigation_id):
 # return True if playbook completed successfully
 def test_integration(client, integration_name, integration_params, playbook_id, options={}):
     # create integration instance
-    instance_name = __create_integration_instance(client, integration_name, integration_params)
+    instance_id = __create_integration_instance(client, integration_name, integration_params)
 
-    if not instance_name:
+    if not instance_id:
         print_error('failed to create instance')
         return False
 
@@ -237,6 +238,6 @@ def test_integration(client, integration_name, integration_params, playbook_id, 
     __delete_incident(client, incident)
 
     # delete integration instance
-    __delete_integration_instance(client, instance_name)
+    __delete_integration_instance(client, instance_id)
 
     return playbook_state == PB_Status.COMPLETED
