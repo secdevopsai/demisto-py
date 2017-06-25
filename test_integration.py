@@ -2,13 +2,14 @@ import time
 from pprint import pformat
 import uuid
 import urllib
-import sys
 
 # ----- Utils ----- #
 
+NATIVE_COLOR = '\033[m'
+RED_COLOR = '\033[01;31m'
 
 def print_error(error_str):
-    sys.stderr.write(error_str + '\n')
+    print(RED_COLOR + error_str + NATIVE_COLOR)
 
 # ----- Constants ----- #
 DEFAULT_TIMEOUT = 60
