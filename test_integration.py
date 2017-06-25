@@ -1,10 +1,12 @@
 import time
-from pprint import pprint, pformat
+from pprint import pformat
 import uuid
 import urllib
 import sys
 
 # ----- Utils ----- #
+
+
 def print_error(error_str):
     sys.stderr.write(error_str + '\n')
 
@@ -94,7 +96,7 @@ def __create_integration_instance(client, integration_name, integration_params):
 
     if res.status_code != 200:
         print_error('create instance failed with status code ' + str(res.status_code))
-        pprint(res.json())
+        print_error(pformat(res.json()))
         return None
 
     integration_config = res.json()
@@ -157,7 +159,6 @@ def __delete_incident(client, incident):
         print_error(pformat(res.json()))
         return False
 
-    # print 'incident ' + incident['id'] + ' was deleted'
     return True
 
 
@@ -168,7 +169,6 @@ def __delete_integration_instance(client, instance_name):
         print_error('delete integration instance failed\nStatus code' + str(res.status_code))
         print_error(pformat(res.json()))
         return False
-    # print 'Integration ' + instance_name + ' was deleted'
     return True
 
 
@@ -195,16 +195,16 @@ def test_integration(client, integration_name, integration_params, playbook_id, 
     instance_name = __create_integration_instance(client, integration_name, integration_params)
 
     if not instance_name:
-        print 'failed to create instance'
-        return
+        print_error('failed to create instance')
+        return False
 
     # create incident with playbook
     incident = __create_incident_with_playbook(client, integration_name, playbook_id)
 
     investigation_id = incident['investigationId']
     if investigation_id is None or len(investigation_id) == 0:
-        print 'failed to get investigation id of incident:' + incident
-        return
+        print_error('failed to get investigation id of incident:' + incident)
+        return False
 
     timeout_amount = options['timeout'] if 'timeout' in options else DEFAULT_TIMEOUT
     timeout = time.time() + timeout_amount
