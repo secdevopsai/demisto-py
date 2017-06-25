@@ -1,11 +1,26 @@
 import time
-from pprint import pprint
+from pprint import pprint, pformat
 import uuid
 import urllib
+import sys
 
+# ----- Utils ----- #
+def print_error(error_str):
+    sys.stderr.write(error_str + '\n')
+
+# ----- Constants ----- #
 DEFAULT_TIMEOUT = 60
 DEFAULT_INTERVAL = 10
 ENTRY_TYPE_ERROR = 4
+
+
+class PB_Status:
+    COMPLETED = 'completed'
+    FAILED = 'failed'
+    IN_PROGRESS = 'inprogress'
+
+# ----- Functions ----- #
+
 
 # get integration configuration
 def __get_integration_config(client, integration_name):
@@ -18,7 +33,7 @@ def __get_integration_config(client, integration_name):
     match_configurations = [x for x in all_configurations if x['name'] == integration_name]
 
     if not match_configurations or len(match_configurations) == 0:
-        print 'integration was not found'
+        print_error('integration was not found')
         return False
 
     return match_configurations[0]
@@ -28,12 +43,13 @@ def __get_integration_config(client, integration_name):
 def __test_integration_instance(client, module_instance):
     res = client.req('POST', '/settings/integration/test', module_instance)
     if res.status_code != 200:
+        print_error('Integration-instance test ("Test" button) failed.\nBad status code: ' + str(res.status_code))
         return False
 
     result_object = res.json()
     success = result_object['success']
     if not success:
-        print 'Test integration failed.\n Failure message: ' + result_object['message']
+        print_error('Test integration failed.\n Failure message: ' + result_object['message'])
         return False
 
     return True
@@ -77,7 +93,7 @@ def __create_integration_instance(client, integration_name, integration_params):
     res = client.req('PUT', '/settings/integration', module_instance)
 
     if res.status_code != 200:
-        print 'create instance failed with status code ' + str(res.status_code)
+        print_error('create instance failed with status code ' + str(res.status_code))
         pprint(res.json())
         return None
 
@@ -98,8 +114,12 @@ def __create_integration_instance(client, integration_name, integration_params):
 def __create_incident_with_playbook(client, name, playbook_id):
     # create incident
     kwargs = {'createInvestigation': True, 'playbookId': playbook_id}
-    r = client.CreateIncident(name, None, None, None, None,
+    try:
+        r = client.CreateIncident(name, None, None, None, None,
                          None, None, **kwargs)
+    except RuntimeError as err:
+        print_error(str(err))
+
     response_json = r.json()
     inc_id = response_json['id']
 
@@ -110,7 +130,7 @@ def __create_incident_with_playbook(client, name, playbook_id):
     incidents = client.SearchIncidents(0, 50, 'id:' + inc_id)
 
     if incidents['total'] != 1:
-        print 'failed to get incident with id:' + inc_id
+        print_error('failed to get incident with id:' + inc_id)
         return
 
     return incidents['data'][0]
@@ -133,8 +153,8 @@ def __delete_incident(client, incident):
     })
 
     if res.status_code is not 200:
-        print 'delete incident failed\nStatus code' + str(res.status_code)
-        pprint(res.json())
+        print_error('delete incident failed\nStatus code' + str(res.status_code))
+        print_error(pformat(res.json()))
         return False
 
     # print 'incident ' + incident['id'] + ' was deleted'
@@ -145,8 +165,8 @@ def __delete_incident(client, incident):
 def __delete_integration_instance(client, instance_name):
     res = client.req('DELETE', '/settings/integration/' + urllib.quote(instance_name), {})
     if res.status_code is not 200:
-        print 'delete integration instance failed\nStatus code' + str(res.status_code)
-        pprint(res.json())
+        print_error('delete integration instance failed\nStatus code' + str(res.status_code))
+        print_error(pformat(res.json()))
         return False
     # print 'Integration ' + instance_name + ' was deleted'
     return True
@@ -156,12 +176,12 @@ def __print_investigation_error(client, playbook_id, investigation_id):
     res = client.req('POST', '/investigation/' + urllib.quote(investigation_id), {})
     if res.status_code == 200:
         entries = res.json()['entries']
-        print 'Playbook ' + playbook_id + ' has failed:'
+        print_error('Playbook ' + playbook_id + ' has failed:')
         for entry in entries:
             if entry['type'] == ENTRY_TYPE_ERROR:
                 if entry['parentContent']:
-                    print '\t- Command: ' + str(entry['parentContent'])
-                print '\t- Body: ' + str(entry['contents'])
+                    print_error('\t- Command: ' + str(entry['parentContent']))
+                print_error('\t- Body: ' + str(entry['contents']))
 
 
 # 1. create integration instance
@@ -169,6 +189,7 @@ def __print_investigation_error(client, playbook_id, investigation_id):
 # 3. wait for playbook to finish run
 # 4. delete incident
 # 5. delete instance
+# return True if playbook completed successfully
 def test_integration(client, integration_name, integration_params, playbook_id, options={}):
     # create integration instance
     instance_name = __create_integration_instance(client, integration_name, integration_params)
@@ -185,9 +206,6 @@ def test_integration(client, integration_name, integration_params, playbook_id, 
         print 'failed to get investigation id of incident:' + incident
         return
 
-    # waiting for incident creation
-    time.sleep(0.2)
-
     timeout_amount = options['timeout'] if 'timeout' in options else DEFAULT_TIMEOUT
     timeout = time.time() + timeout_amount
     interval = options['interval'] if 'interval' in options else DEFAULT_INTERVAL
@@ -201,14 +219,14 @@ def test_integration(client, integration_name, integration_params, playbook_id, 
         # fetch status
         playbook_state = __get_investigation_playbook_state(client, investigation_id)
 
-        if playbook_state == 'completed':
+        if playbook_state == PB_Status.COMPLETED:
             print 'Playbook ' + playbook_id + ' succeed'
             break
-        if playbook_state == 'failed':
+        if playbook_state == PB_Status.FAILED:
             __print_investigation_error(client, playbook_id, investigation_id)
             break
         if time.time() > timeout:
-            print 'Playbook ' + playbook_id + ' timeout failure'
+            print_error('Playbook ' + playbook_id + ' timeout failure')
             break
 
         print 'loop no.' + str(i) + ', playbook state is ' + playbook_state
@@ -220,4 +238,4 @@ def test_integration(client, integration_name, integration_params, playbook_id, 
     # delete integration instance
     __delete_integration_instance(client, instance_name)
 
-    print 'finished'
+    return playbook_state == PB_Status.COMPLETED

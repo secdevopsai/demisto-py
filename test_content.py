@@ -2,6 +2,7 @@ import argparse
 import demisto
 from test_integration import test_integration
 import json
+import sys
 
 
 def options_handler():
@@ -36,13 +37,17 @@ def main():
     integrations = conf['integrations']
     if not integrations or len(integrations) is 0:
         print 'no integrations are configured for test'
+
+    all_completed = True
     for integration in integrations:
         test_options = {
             'timeout': integration['timeout'] if 'timeout' in integration else conf['testTimeout'],
             'interval': conf['testInterval']
         }
-        test_integration(c, integration['name'], integration['params'], integration['playbookID'], test_options)
+        all_completed = all_completed and test_integration(c, integration['name'], integration['params'], integration['playbookID'], test_options)
 
+    if not all_completed:
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
